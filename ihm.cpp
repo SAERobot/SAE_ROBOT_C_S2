@@ -1,144 +1,244 @@
 #include <mbed.h>
 #include <robot.hpp>
 
-#include <confettis.hpp>
-#include <carre.hpp>
 #include <suivi.hpp>
+#include <labyrinthe.hpp>
+#include <balise.hpp>
+#include <bluetooth.hpp>
 
-void ihmDebug(Robot& goofyBot) {
-    while(true) {
-        if(goofyBot.IHM_Btn1.read() == 0) {
-            goofyBot.IHM_Led1.write(1);
-        }
-        else {
-            goofyBot.IHM_Led1.write(0);
-        }
-        if(goofyBot.IHM_Btn2.read() == 0) {
-            goofyBot.IHM_Led2.write(1);
-        }
-        else {
-            goofyBot.IHM_Led2.write(0);
-        }
-        if(goofyBot.IHM_Btn3.read() == 0) 
-        {
-            goofyBot.IHM_Led3.write(1);
-        }
-        else {
-            goofyBot.IHM_Led3.write(0);
-        }
-        if(goofyBot.IHM_Btn4.read() == 0) {
-            goofyBot.IHM_Led4.write(1);
-        }
-        else {
-            goofyBot.IHM_Led4.write(0);
-        }
-    }
-    return;
-}
+#include <audio.hpp>
 
-void ihmBoot(Robot& goofyBot) {
-    int b1;
-    int b2;
-    int b3;
-    int b4;
+Timer tim;
 
+void ihmBoot(Robot &goofyBot) {
+  int etat = 0;
+  int oldBp = 1;
+  float valeur;
+  char tab[17];
+  tim.reset();
+  tim.start();
+  while (true) {
+    switch (etat) {
+        case 0: // bootup
+          if (tim.read() > 2.0) {
+            volume(goofyBot, 15);
+            tim.stop();
+            tim.reset();
+            tim.start();
+            goofyBot.LCD.clear();
+            change(goofyBot, 9);
+            etat = 1;
+          }
+          break;
 
-    // Petit effet de boot pour l'IHM
-    // il faut controler le niveau de la batterie
-    for(int i = 0; i < 3; i++) {
-        goofyBot.IHM_Led1.write(0);
-        goofyBot.IHM_Led2.write(0);
-        goofyBot.IHM_Led3.write(0);
-        goofyBot.IHM_Led4.write(0);
-        wait_us(50000);
-        goofyBot.IHM_Led1.write(1);
-        wait_us(50000);
-        goofyBot.IHM_Led2.write(1);
-        wait_us(50000);
-        goofyBot.IHM_Led3.write(1);
-        wait_us(50000);
-        goofyBot.IHM_Led4.write(1);
-        wait_us(50000);
-    }
-    goofyBot.IHM_Led1.write(0);
-    goofyBot.IHM_Led2.write(0);
-    goofyBot.IHM_Led3.write(0);
-    goofyBot.IHM_Led4.write(0);
-
-    goofyBot.IHM_Btn1.mode(PullNone);
-    goofyBot.IHM_Btn2.mode(PullNone);
-    goofyBot.IHM_Btn3.mode(PullNone);
-    goofyBot.IHM_Btn4.mode(PullNone);
-
-    // Après démarrage de l'IHM, on attend que le programme soit sélectionné
-    while(true) {        
-        b1 = goofyBot.IHM_Btn1.read();
-        b2 = goofyBot.IHM_Btn2.read();
-        b3 = goofyBot.IHM_Btn3.read();
-        b4 = goofyBot.IHM_Btn4.read();
-
-        if(b1 == 1) {
-            goofyBot.IHM_Led1.write(1);
-            confettis(goofyBot);
-        }
-        else if(b2 == 1) {
-            goofyBot.IHM_Led2.write(1);
-            suivi(goofyBot);
-        }
-        else if(b3 == 1) {
-            goofyBot.IHM_Led3.write(1);
-            carre(goofyBot);
-        }
-        else if(b4 == 1) {
-            goofyBot.IHM_Led4.write(1);
+        case 1: // debug mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
             goofyBot.debugMode();
-        }
+          }
+          break;
+
+        case 2: // black linefollow mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);              
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            suivi(goofyBot, 1, 0);
+          }
+          break;
+
+        case 3: // white linefollow mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            suivi(goofyBot, 0, 0);
+          }
+          break;
+
+        case 4: // robot linefollow mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            suivi(goofyBot, 1, 1);
+          }
+          break;
+
+        case 5: // labyrinthe mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            labyrinthe(goofyBot);
+          }
+          break;
+
+        case 6: // balise mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat += 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            balise(goofyBot);
+          }
+          break;
+
+        case 7: // bluetooth mode
+          if (goofyBot.bp.read() == 0 && oldBp != goofyBot.bp.read()) {
+            change(goofyBot, 12);
+            etat = 1;
+            oldBp = 1;
+            goofyBot.LCD.clear();
+            tim.reset();
+            tim.start();
+          }
+          if (tim.read() > 3.0) {
+            tim.stop();
+            sprintf(tab, "[X]");
+            goofyBot.LCD.locate(13, 1);
+            goofyBot.LCD.print(tab);
+            bluetooth(goofyBot);
+          }
+          break;
     }
-}
 
-int ihmSel(Robot& goofyBot) {
-    // Taille en CM du carré (entre 60 et 200)
-    int res = 0;
-    while(goofyBot.IHM_Btn4.read() == 0) {
-        goofyBot.IHM_Led2.write(0);
-        if (goofyBot.IHM_Btn1.read() == 1) {
-            // Ajout dizaines
-            res += 10;
-            wait_us(1000000);
-        }
-        else if (goofyBot.IHM_Btn2.read() == 1) {
-            // Ajout centaines
-            res += 100;
-            wait_us(1000000);
-
-        }
-        else if (goofyBot.IHM_Btn3.read() == 1) {
-            // Reset
-            res = 0;
-            wait_us(1000000);
-        }
-        
+    switch (etat) { // maj sorties
+        case 0:
+          goofyBot.LCD.clear();
+          goofyBot.LCD.setRGB(255, 255, 255);
+          sprintf(tab, "goofyBOT OS");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+    
+          sprintf(tab, "Loading ...");
+          goofyBot.LCD.locate(0, 1);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 1:
+          goofyBot.LCD.setRGB(128, 0, 0);
+          sprintf(tab, "> Debug Mode");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+    
+          valeur = goofyBot.mesureBatterie.read();
+          valeur = valeur * 3.3 * ((12.0 + 47.0) / 12.0) + 0.6;
+          sprintf(tab, "Bat. : %.2f V", valeur);
+          goofyBot.LCD.locate(0, 1);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 2:
+          goofyBot.LCD.setRGB(255, 64, 0);
+          sprintf(tab, "> LineFollow");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+    
+          sprintf(tab, "BLACK");
+          goofyBot.LCD.locate(0, 1);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 3:
+          goofyBot.LCD.setRGB(255, 255, 0);
+          sprintf(tab, "> LineFollow");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+    
+          sprintf(tab, "WHITE");
+          goofyBot.LCD.locate(0, 1);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 4:
+          goofyBot.LCD.setRGB(0, 255, 0);
+          sprintf(tab, "> LineFollow");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+    
+          sprintf(tab, "ROBOT");
+          goofyBot.LCD.locate(0, 1);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 5:
+          goofyBot.LCD.setRGB(0, 0, 255);
+          sprintf(tab, "> Labyrinthe");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 6:
+          goofyBot.LCD.setRGB(0, 255, 255);
+          sprintf(tab, "> Balise");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+          break;
+    
+        case 7:
+          goofyBot.LCD.setRGB(255, 0, 255);
+          sprintf(tab, "> Bluetooth");
+          goofyBot.LCD.locate(0, 0);
+          goofyBot.LCD.print(tab);
+          break;
     }
-    if(res > 200 || res < 60) {
-        res = 0;
-        for(int i = 0; i < 5; i++) {
-            goofyBot.IHM_Led4.write(0);
-            wait_us(100000);
-            goofyBot.IHM_Led4.write(1);
-            wait_us(100000);
-        }
-    }
 
-    goofyBot.IHM_Led2.write(1);
-
-    for(int i = 0; i < 5; i++) {
-        goofyBot.IHM_Led1.write(0);
-        wait_us(500000);
-        goofyBot.IHM_Led1.write(1);
-        wait_us(500000);
-    }
-
-    goofyBot.IHM_Led2.write(0);
-
-    return res;
+    wait_us(500000);
+  }
 }

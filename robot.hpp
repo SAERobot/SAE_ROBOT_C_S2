@@ -2,6 +2,8 @@
 #define ROBOT_HPP
 
 #include <mbed.h>
+#include <SRF05.h>
+#include <Grove_LCD_RGB_Backlight.h>
 
 #define WAITING_MODE 0
 #define DEBUG_MODE 1
@@ -15,15 +17,11 @@ public:
     Robot();
     int mode;
 
-    DigitalOut IHM_Led1;
-    DigitalOut IHM_Led2;
-    DigitalOut IHM_Led3;
-    DigitalOut IHM_Led4;
-
-    DigitalIn IHM_Btn1;
-    DigitalIn IHM_Btn2;
-    DigitalIn IHM_Btn3;
-    DigitalIn IHM_Btn4;
+    SRF05 captGauche;
+    SRF05 captDroit;
+    Grove_LCD_RGB_Backlight LCD;
+    DigitalIn ir;
+    DigitalIn bp;
 
     DigitalIn jack;
     DigitalIn finCourse;
@@ -38,7 +36,12 @@ public:
     DigitalOut moteurDroitSens;
     DigitalOut moteurGaucheSens;
 
-    Serial bluetooth;
+    InterruptIn A_mot2;
+    DigitalIn B_mot2;
+    InterruptIn A_mot1;
+    DigitalIn B_mot1;
+
+    Serial com;
 
     int jackVal;
     int fcVal;

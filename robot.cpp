@@ -2,6 +2,17 @@
 
 #define T 0.001
 
+/*
+// Initialisation des variables du moteur de gauche
+int cptg = 0;
+// Initialisation des variables du moteur de droite
+int cptd = 90;
+
+void encode2A() {cptg++;}
+void encode1A() {cptd++;}
+*/
+
+
 // Constructeur
 Robot::Robot() :
     jack(PTE20),
@@ -12,21 +23,23 @@ Robot::Robot() :
     captLigneGaucheInt(A4),
     captLigneGaucheExt(A3),
 
-    IHM_Led1(D15),
-    IHM_Led2(D14),
-    IHM_Led3(D13),
-    IHM_Led4(D12),
-    IHM_Btn1(D4),
-    IHM_Btn2(D5),
-    IHM_Btn3(A5),
-    IHM_Btn4(PTE30),
+    captGauche(D12, D13),
+    captDroit(D5, D4),
+    LCD(D14, D15),
+    ir(PTE30),
+    bp(A5),
 
     moteurDroit(D6),
     moteurGauche(D8),
     moteurDroitSens(D7),
     moteurGaucheSens(D9),
 
-    bluetooth(PTE22, PTE23)
+    A_mot2(D11),
+    B_mot2(D10),
+    A_mot1(D2),
+    B_mot1(D3),
+
+    com(PTE22, PTE23)
 {
     mode = WAITING_MODE;
 }
@@ -34,8 +47,7 @@ Robot::Robot() :
 void Robot::debugMode() {
     // Debug mode - Affichage des valeurs des capteurs
     int choix, fdc;
-    char rxCommand, oldRX;
-    float valeur, valeur2, valeur3, valeur4;
+    float valeur, valeur2, valeur3, valeur4, error;
     float droite, gauche;
     droite = gauche = 0.0;
     choix = 0;
@@ -82,27 +94,11 @@ void Robot::debugMode() {
                 if(fdc == 0)
                     choix = 7;
                 break;
-
-            case 9:
-                printf("Bluetooth prêt, envoyez commande.");
-                if(fdc == 0)
-                    choix = 7;
-                if(rxCommand != oldRX) {
-                    choix = 10;
-                }
-                break;
-
-            case 10:
-                if(fdc == 0)
-                    choix = 7;
-                choix = 9;
-                break;
-
         }
 
         switch(choix) {
             case 0: // menu
-                printf("Bienvenu sur le programme Debug, veuillez choisir un mode. \n\r1 - Jack \n\r2 - Fin de course \n\r3 - Mesure batterie \n\r4 - Capteurs \n\r5 - Moteur avant \n\r6 - Moteur arriere \n\r8 - Custom moteur \n\r9 - Bluetooth");
+                printf("Bienvenu sur le programme Debug, veuillez choisir un mode. \n\r1 - Jack \n\r2 - Fin de course \n\r3 - Mesure batterie \n\r4 - Capteurs \n\r5 - Moteur avant \n\r6 - Moteur arriere \n\r8 - Custom moteur \n\r");
                 scanf("%d", &choix);
                 break;
 
@@ -126,11 +122,12 @@ void Robot::debugMode() {
                 break;
             
             case 4: // afficher 4 capteurs
-                valeur = captLigneDroiteInt.read()*3.3;
-                valeur2 = captLigneDroiteExt.read()*3.3;
-                valeur3 = captLigneGaucheInt.read()*3.3;
-                valeur4 = captLigneGaucheExt.read()*3.3;
-                printf("%.2f | %.2f | %.2f | %.2f \n\r", valeur, valeur2, valeur3, valeur4);
+                valeur = (1-captLigneDroiteInt.read());
+                valeur2 = (1-captLigneDroiteExt.read());
+                valeur3 = (1-captLigneGaucheInt.read());
+                valeur4 = (1-captLigneGaucheExt.read());
+                error = (valeur3 - valeur); 
+                printf("%.2f | %.2f | %.2f | %.2f | %.2f \n\r", valeur4, valeur3, valeur, valeur2, error);
                 wait_us(500000);
                 break;
 
@@ -164,23 +161,44 @@ void Robot::debugMode() {
             case 8:
                 move(droite, gauche);
                 break;
-
-            case 9:
-                rxCommand = bluetooth.getc();
-                break;
-
-            case 10:
-                oldRX = rxCommand;
-                move((int)rxCommand, (int)rxCommand);
-                choix = 9;
-                break;
         }
     }
 }
 
-void Robot::move(float pwmGauche, float pwmDroit) {
+/*
+void Robot::movePID(float pwmGauche, float pwmDroit) {
+    int SPEED = 30;
+    int KP = 45;
+    int KD = 55;
+
+    A_mot1.rise(&encode1A);
+    A_mot2.rise(&encode2A);
     moteurDroit.period(T);
     moteurGauche.period(T);
+    float tordroite, torgauche;
+    int e, last_error, derivative;
+    float pid = 0.0;
+    last_error = 1;
+    tordroite = 0;
+    torgauche = 0;
+
+    tordroite = (float)cptd / 87.0;
+    torgauche = (float)cptg / 55.0;
+    e = (tordroite - torgauche);
+    derivative = e - last_error;
+    last_error = e;
+    pid = (KP * e) + (KD * derivative);
+    move(SPEED + pid + 1, SPEED - pid);
+}
+*/
+
+void Robot::move(float pwmGauche, float pwmDroit) {
+
+    if(pwmGauche >= 100) 
+        pwmGauche = 100;
+
+    if(pwmDroit >= 100)
+        pwmDroit = 100;
 
     if(pwmGauche >= -100.0 && pwmGauche < 0) {
         moteurGaucheSens = 0;
